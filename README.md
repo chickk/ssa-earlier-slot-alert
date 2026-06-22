@@ -24,9 +24,9 @@ Edit `config.json` before running:
 
 ```json
 {
-  "startUrl": "https://secure.ssa.gov/RIL/SiView.action",
-  "zipCodes": ["22304", "20024", "20020"],
-  "currentAppointmentDate": "2026-07-22",
+  "startUrl": "The link provided in your Appointment Confirmation",
+  "zipCodes": ["XXXXX", "OOOOO", "ZZZZZ"],
+  "currentAppointmentDate": "YYYY-MM-DD",
   "checkEveryMinutes": 10,
   "betweenZipDelayMs": 8000,
   "browserProfileDir": ".ssa-browser-profile",
