@@ -31,7 +31,8 @@ function loadConfig() {
     browserProfileDir: config.browserProfileDir ?? ".ssa-browser-profile",
     headless: Boolean(config.headless),
     notifyOnEveryEarlierResult: Boolean(config.notifyOnEveryEarlierResult),
-    debugSnapshots: config.debugSnapshots !== false
+    debugSnapshots: config.debugSnapshots !== false,
+    resetFromStartUrlEachZip: config.resetFromStartUrlEachZip === true
   };
 }
 
@@ -140,11 +141,36 @@ async function fillZipCode(page, zipCode) {
   const zipInput = await findZipInput(page);
 
   if (zipInput) {
-    await zipInput.fill(zipCode);
+    await zipInput.click();
+    await page.keyboard.press(process.platform === "darwin" ? "Meta+A" : "Control+A");
+    await page.keyboard.press("Backspace");
+    await page.keyboard.type(zipCode, { delay: 50 });
+    await zipInput.evaluate((input, value) => {
+      input.value = value;
+      input.dispatchEvent(new Event("input", { bubbles: true, composed: true }));
+      input.dispatchEvent(new Event("change", { bubbles: true, composed: true }));
+
+      const textbox = input.closest("uef-textbox");
+      if (textbox) {
+        textbox.setAttribute("value", value);
+        textbox.value = value;
+        textbox.dispatchEvent(new CustomEvent("uefChange", { bubbles: true, composed: true, detail: { value } }));
+      }
+    }, zipCode);
+    await page.waitForTimeout(300);
     return;
   }
 
   throw new Error("Could not find the ZIP code input on the current page.");
+}
+
+async function getCurrentZipInputValue(page) {
+  const zipInput = await findZipInput(page);
+  if (!zipInput) {
+    return null;
+  }
+
+  return zipInput.evaluate((input) => input.value);
 }
 
 function safeFileLabel(label) {
@@ -168,6 +194,9 @@ async function saveDebugSnapshot(page, label) {
         name: el.getAttribute("name"),
         id: el.getAttribute("id"),
         value: el.getAttribute("value"),
+        checked: el.checked,
+        disabled: el.disabled,
+        href: el.getAttribute("href"),
         ariaLabel: el.getAttribute("aria-label"),
         text: el.textContent?.trim(),
         visibleText: el.innerText?.trim()
@@ -235,6 +264,18 @@ async function askUserToReturnToZipPage(page) {
   }
 }
 
+async function goToStartUrl(page, config) {
+  await page.goto(config.startUrl, { waitUntil: "domcontentloaded" });
+  await waitForLoadingToFinish(page).catch(() => {});
+
+  if (await waitForZipSearchPage(page, 15000)) {
+    return;
+  }
+
+  console.log("The startUrl did not land on the ZIP Code page.");
+  await askUserToReturnToZipPage(page);
+}
+
 async function ensureZipSearchReady(page) {
   await waitForLoadingToFinish(page);
 
@@ -245,11 +286,31 @@ async function ensureZipSearchReady(page) {
   await askUserToReturnToZipPage(page);
 }
 
-async function returnToZipSearch(page) {
+async function returnToZipSearch(page, config, nextZipCode) {
   await waitForLoadingToFinish(page).catch(() => {});
 
   if (await waitForZipSearchPage(page, 1000)) {
     return;
+  }
+
+  const selectAnotherLocation = page.locator("#select-another-location-button").first();
+  if (
+    (await selectAnotherLocation.count().catch(() => 0)) &&
+    (await selectAnotherLocation.isVisible().catch(() => false))
+  ) {
+    await Promise.all([
+      page.waitForLoadState("domcontentloaded").catch(() => {}),
+      selectAnotherLocation.click()
+    ]);
+    await waitForLoadingToFinish(page).catch(() => {});
+
+    if (await waitForZipSearchPage(page, 10000)) {
+      return;
+    }
+
+    if (config.debugSnapshots) {
+      await saveDebugSnapshot(page, `after-select-another-location-before-${nextZipCode}`);
+    }
   }
 
   const backCandidates = [
@@ -278,6 +339,10 @@ async function returnToZipSearch(page) {
 
   if (await waitForZipSearchPage(page, 5000)) {
     return;
+  }
+
+  if (config.debugSnapshots) {
+    await saveDebugSnapshot(page, `failed-return-to-zip-before-${nextZipCode}`);
   }
 
   await askUserToReturnToZipPage(page);
@@ -314,6 +379,20 @@ async function extractSlots(page) {
   return buildSlots(appointmentRows);
 }
 
+async function extractOfficeSummary(page) {
+  const bodyText = await page.locator("body").innerText().catch(() => "");
+  const match = bodyText.match(/Select a New Appointment[\s\S]*?Contact Type:[^\n]*\n\n([\s\S]*?)\n\nAvailable appointment times:/i);
+  if (!match) {
+    return null;
+  }
+
+  return match[1]
+    .split(/\n+/)
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .join(", ");
+}
+
 function buildSlots(rows) {
   const slots = [];
 
@@ -334,8 +413,16 @@ function buildSlots(rows) {
 }
 
 async function searchZip(page, zipCode, config) {
+  if (config.resetFromStartUrlEachZip) {
+    await goToStartUrl(page, config);
+  }
+
   await ensureZipSearchReady(page);
   await fillZipCode(page, zipCode);
+  const enteredZip = await getCurrentZipInputValue(page);
+  if (enteredZip !== zipCode) {
+    throw new Error(`ZIP input shows ${enteredZip || "(empty)"} after entering ${zipCode}.`);
+  }
   await clickNext(page);
   await page.waitForLoadState("networkidle").catch(() => {});
   await waitForLoadingToFinish(page).catch(() => {});
@@ -368,6 +455,11 @@ async function runRound(page, config, notifiedKeys) {
         console.log(`ZIP ${zipCode}: earliest date found is ${formatDate(slots[0].date)}.`);
       }
 
+      const officeSummary = await extractOfficeSummary(page);
+      if (officeSummary) {
+        console.log(`ZIP ${zipCode}: office ${officeSummary}`);
+      }
+
       for (const slot of slots) {
         if (compareDateOnly(slot.date, config.currentAppointmentDate) >= 0) {
           continue;
@@ -382,8 +474,8 @@ async function runRound(page, config, notifiedKeys) {
         notify("SSA earlier appointment found", `${zipCode}: ${slot.raw}`);
       }
 
-      if (index < config.zipCodes.length - 1) {
-        await returnToZipSearch(page);
+      if (index < config.zipCodes.length - 1 && !config.resetFromStartUrlEachZip) {
+        await returnToZipSearch(page, config, config.zipCodes[index + 1]);
       }
     } catch (error) {
       if (isClosedBrowserError(error)) {
