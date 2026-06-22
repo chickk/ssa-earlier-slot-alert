@@ -99,8 +99,6 @@ This validates the JavaScript syntax. Real SSA page behavior still needs to be t
 
 - Do not run many browser windows or tabs in parallel.
 - Do not use very short polling intervals outside brief testing.
-- Do not store SSA, Login.gov, or ID.me passwords in code.
-- Do not commit `.ssa-browser-profile/`, `config.json`, or `work/debug/`.
 - If the session expires or SSA asks for authentication again, complete it manually.
 - This script only alerts. It does not automatically choose or confirm a new appointment.
 
