@@ -1,0 +1,11 @@
+{
+  "startUrl": "https://secure.ssa.gov/RIL/SiView.action",
+  "zipCodes": ["22304", "22102", "20814", "20001"],
+  "currentAppointmentDate": "2026-07-20",
+  "checkEveryMinutes": 5,
+  "betweenZipDelayMs": 3000,
+  "browserProfileDir": ".ssa-browser-profile",
+  "headless": false,
+  "notifyOnEveryEarlierResult": false,
+  "debugSnapshots": true
+}

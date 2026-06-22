@@ -1,0 +1,14 @@
+{
+  "name": "ssa-earlier-slot-alert",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Checks SSA appointment availability across multiple ZIP codes and alerts on earlier openings.",
+  "type": "module",
+  "scripts": {
+    "start": "node src/monitor.js",
+    "check": "node --check src/monitor.js"
+  },
+  "dependencies": {
+    "playwright": "^1.55.0"
+  }
+}
