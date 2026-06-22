@@ -4,6 +4,12 @@ A conservative Playwright-based watcher that checks SSA appointment availability
 
 This tool opens a real Chrome window and uses a persistent local browser profile. You sign in manually with SSA, Login.gov, ID.me, Face ID, passkey, or MFA. The script does not bypass authentication, solve CAPTCHA, store passwords, or automatically reschedule appointments.
 
+## Motivation
+
+An SSN can be especially important for international students who are starting work, onboarding with employers, setting up payroll, or completing other employment-related paperwork. In practice, EAD card processing can already take a long time, and students who wait until after EAD approval to book an SSA appointment may only find openings well after their OPT start date.
+
+This project was built to reduce that manual checking burden. It watches for earlier SSA appointment openings across several nearby ZIP codes and sends a local alert when a better slot appears, while still leaving sign-in and any appointment changes under the user's manual control.
+
 ## What It Does
 
 - Checks multiple ZIP codes one at a time.
@@ -61,6 +67,25 @@ First run:
 5. Return to the terminal and press Enter.
 
 The script then checks each ZIP code in sequence, waits for the configured interval, and repeats.
+
+## Result Preview
+
+When an earlier appointment is found, the watcher sends a local macOS notification with the ZIP code and available time.
+
+![SSA earlier appointment notification](assets/ssa-notification-redacted.png)
+
+The terminal also prints each ZIP code as it is checked:
+
+```text
+Starting round at 6/22/2026, 1:01:35 AM
+Checking ZIP 22304...
+ZIP 22304: earliest date found is 2026-08-13.
+Checking ZIP 20024...
+ZIP 20024: earliest date found is 2026-08-13.
+Round finished. Waiting 10 minute(s)...
+```
+
+The screenshot above uses redacted ZIP codes. Before sharing your own screenshots publicly, redact exact ZIP codes, appointment links, confirmation codes, names, addresses, and any browser profile or session details.
 
 ## Test
 
