@@ -33,12 +33,12 @@ Edit `config.json` before running:
   "startUrl": "The link provided in your Appointment Confirmation",
   "zipCodes": ["XXXXX", "OOOOO", "ZZZZZ"],
   "currentAppointmentDate": "YYYY-MM-DD",
-  "checkEveryMinutes": 10,
+  "checkEveryMinutes": 8,
   "betweenZipDelayMs": 8000,
   "browserProfileDir": ".ssa-browser-profile",
   "headless": false,
   "notifyOnEveryEarlierResult": false,
-  "debugSnapshots": true,
+  "debugSnapshots": false,
   "resetFromStartUrlEachZip": false
 }
 ```
@@ -49,7 +49,7 @@ Important fields:
 - `currentAppointmentDate`: your existing appointment date in `YYYY-MM-DD` format.
 - `checkEveryMinutes`: delay between full check rounds. Use 10 minutes or longer for normal use.
 - `betweenZipDelayMs`: delay between ZIP searches. Use 5000-8000 ms or longer for normal use.
-- `debugSnapshots`: writes page text, HTML, and screenshots to `work/debug/` for troubleshooting.
+- `debugSnapshots`: writes page text, HTML, and screenshots to `work/debug/` for troubleshooting. Keep this `false` for normal runs.
 - `resetFromStartUrlEachZip`: optional reset mode. Keep this `false` unless your `startUrl` lands directly on the ZIP Code page.
 
 `config.json` is intentionally ignored by git because it can contain personal appointment details.

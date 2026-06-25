@@ -7,6 +7,6 @@
   "browserProfileDir": ".ssa-browser-profile",
   "headless": false,
   "notifyOnEveryEarlierResult": false,
-  "debugSnapshots": true,
+  "debugSnapshots": false,
   "resetFromStartUrlEachZip": false
 }

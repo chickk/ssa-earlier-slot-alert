@@ -31,7 +31,7 @@ function loadConfig() {
     browserProfileDir: config.browserProfileDir ?? ".ssa-browser-profile",
     headless: Boolean(config.headless),
     notifyOnEveryEarlierResult: Boolean(config.notifyOnEveryEarlierResult),
-    debugSnapshots: config.debugSnapshots !== false,
+    debugSnapshots: config.debugSnapshots === true,
     resetFromStartUrlEachZip: config.resetFromStartUrlEachZip === true
   };
 }
@@ -112,6 +112,44 @@ async function waitForLoadingToFinish(page, timeoutMs = 60000) {
 
 function isClosedBrowserError(error) {
   return /Target page, context or browser has been closed/i.test(error.message);
+}
+
+async function getPageText(page) {
+  return page.locator("body").innerText().catch(() => "");
+}
+
+async function getSsaErrorMessage(page) {
+  const bodyText = await getPageText(page);
+  const errorPatterns = [
+    /There was an error processing your request\.[\s\S]*?Error Code\s+599/i,
+    /Something went wrong\s*\(Error Code\s+\d+\)/i,
+    /You have navigated to this page in error/i
+  ];
+
+  for (const pattern of errorPatterns) {
+    const match = bodyText.match(pattern);
+    if (match) {
+      return match[0].replace(/\s+/g, " ").trim();
+    }
+  }
+
+  return null;
+}
+
+async function handleSsaErrorPage(page, config, label) {
+  const message = await getSsaErrorMessage(page);
+  if (!message) {
+    return false;
+  }
+
+  console.error(`SSA error page detected: ${message}`);
+  if (config.debugSnapshots) {
+    await saveDebugSnapshot(page, `ssa-error-${label}`);
+  }
+
+  console.log("Pause this run here. In Chrome, return to the ZIP Code page manually.");
+  await askUserToReturnToZipPage(page);
+  return true;
 }
 
 async function findZipInput(page) {
@@ -288,6 +326,7 @@ async function ensureZipSearchReady(page) {
 
 async function returnToZipSearch(page, config, nextZipCode) {
   await waitForLoadingToFinish(page).catch(() => {});
+  await handleSsaErrorPage(page, config, `before-${nextZipCode}`);
 
   if (await waitForZipSearchPage(page, 1000)) {
     return;
@@ -418,6 +457,7 @@ async function searchZip(page, zipCode, config) {
   }
 
   await ensureZipSearchReady(page);
+  await handleSsaErrorPage(page, config, `before-zip-${zipCode}`);
   await fillZipCode(page, zipCode);
   const enteredZip = await getCurrentZipInputValue(page);
   if (enteredZip !== zipCode) {
@@ -426,6 +466,7 @@ async function searchZip(page, zipCode, config) {
   await clickNext(page);
   await page.waitForLoadState("networkidle").catch(() => {});
   await waitForLoadingToFinish(page).catch(() => {});
+  await handleSsaErrorPage(page, config, `after-zip-${zipCode}`);
 
   if (config.debugSnapshots) {
     await saveDebugSnapshot(page, `after-zip-${zipCode}`);
@@ -474,8 +515,9 @@ async function runRound(page, config, notifiedKeys) {
         notify("SSA earlier appointment found", `${zipCode}: ${slot.raw}`);
       }
 
-      if (index < config.zipCodes.length - 1 && !config.resetFromStartUrlEachZip) {
-        await returnToZipSearch(page, config, config.zipCodes[index + 1]);
+      if (!config.resetFromStartUrlEachZip) {
+        const nextZipCode = config.zipCodes[index + 1] ?? "next-round";
+        await returnToZipSearch(page, config, nextZipCode);
       }
     } catch (error) {
       if (isClosedBrowserError(error)) {
